@@ -26,7 +26,6 @@
     touch-action: manipulation;
   }
 
-  /* ── VIEWFINDER ── */
   #viewfinder {
     position: fixed;
     inset: 0;
@@ -37,6 +36,10 @@
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
+    transition: transform 0.2s;
+  }
+  #video.mirrored {
+    transform: scaleX(-1);
   }
 
   #overlay-img {
@@ -50,7 +53,6 @@
     mix-blend-mode: normal;
   }
 
-  /* grid guide lines */
   #grid {
     position: absolute;
     inset: 0;
@@ -67,7 +69,6 @@
   #grid::before { left: 33.33%; right: 33.33%; top: 0; bottom: 0; width: 1px; margin: auto; box-shadow: 33vw 0 0 rgba(255,255,255,0.18); }
   #grid::after  { top: 33.33%; bottom: 33.33%; left: 0; right: 0; height: 1px; margin: auto; box-shadow: 0 33vh 0 rgba(255,255,255,0.18); }
 
-  /* corner brackets */
   .corner {
     position: absolute;
     width: 28px; height: 28px;
@@ -80,7 +81,6 @@
   .corner.bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
   .corner.br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
 
-  /* opacity label */
   #opacity-label {
     position: absolute;
     top: 16px; left: 50%; transform: translateX(-50%);
@@ -96,7 +96,6 @@
   }
   #opacity-label.show { opacity: 1; }
 
-  /* ── BOTTOM UI ── */
   #ui {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -109,7 +108,6 @@
     gap: 12px;
   }
 
-  /* pick image button */
   #pick-btn {
     flex-shrink: 0;
     width: 48px; height: 48px;
@@ -132,7 +130,6 @@
     border-radius: 9px;
   }
 
-  /* slider */
   #slider-wrap {
     flex: 1;
     display: flex;
@@ -166,7 +163,6 @@
     box-shadow: 0 0 0 3px rgba(232,255,71,0.2);
   }
 
-  /* flip + grid buttons */
   .icon-btn {
     flex-shrink: 0;
     width: 44px; height: 44px;
@@ -183,7 +179,6 @@
 
   #file-input { display: none; }
 
-  /* ── EMPTY STATE ── */
   #empty {
     position: absolute;
     inset: 0;
@@ -199,7 +194,6 @@
     color: var(--muted); text-align: center; line-height: 1.8;
   }
 
-  /* ── NO CAMERA ── */
   #no-cam {
     position: fixed; inset: 0; bottom: var(--ui-h);
     display: none; align-items: center; justify-content: center;
@@ -223,7 +217,6 @@
   <div class="corner bl"></div>
   <div class="corner br"></div>
   <div id="opacity-label">45%</div>
-
   <div id="empty">
     <div id="empty-icon">⬡</div>
     <div id="empty-text">TAP THE THUMBNAIL<br>TO LOAD YOUR REFERENCE</div>
@@ -285,7 +278,6 @@
   let labelTimer   = null;
   let stream       = null;
 
-  // ── CAMERA ──
   async function startCamera() {
     if (stream) { stream.getTracks().forEach(t => t.stop()); }
     try {
@@ -303,32 +295,28 @@
 
   function flipCamera() {
     facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    video.classList.toggle('mirrored', facingMode === 'user');
     startCamera();
   }
 
-  // ── GRID ──
   function toggleGrid() {
     gridEl.classList.toggle('on');
     gridBtn.classList.toggle('active');
   }
 
-  // ── OPACITY SLIDER ──
   function updateOpacity(val) {
     const pct = val / 100;
     overlayImg.style.opacity = pct;
     slider.style.setProperty('--pct', val + '%');
     label.textContent = val + '%';
-    // show label briefly
     label.classList.add('show');
     clearTimeout(labelTimer);
     labelTimer = setTimeout(() => label.classList.remove('show'), 1200);
   }
 
   slider.addEventListener('input', () => updateOpacity(slider.value));
-  // init track fill
   slider.style.setProperty('--pct', '45%');
 
-  // ── FILE PICK ──
   fileInput.addEventListener('change', e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -338,14 +326,12 @@
     thumb.src = url;
     thumb.style.display = 'block';
     empty.classList.add('hidden');
-    // find the SVG placeholder and hide it
     const svg = document.querySelector('#pick-btn > svg');
     if (svg) svg.style.display = 'none';
     updateOpacity(slider.value);
     fileInput.value = '';
   });
 
-  // ── INIT ──
   startCamera();
 </script>
 </body>
