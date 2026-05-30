@@ -14,7 +14,7 @@
     --text: #f0f0f0;
     --muted: #666;
     --accent: #e8ff47;
-    --ui-h: 80px;
+    --ui-h: 100px;
   }
 
   html, body {
@@ -38,9 +38,7 @@
     display: block;
     transition: transform 0.2s;
   }
-  #video.mirrored {
-    transform: scaleX(-1);
-  }
+  #video.mirrored { transform: scaleX(-1); }
 
   #overlay-img {
     position: absolute;
@@ -50,7 +48,6 @@
     pointer-events: none;
     opacity: 0.45;
     display: none;
-    mix-blend-mode: normal;
   }
 
   #grid {
@@ -81,6 +78,33 @@
   .corner.bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
   .corner.br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
 
+  #countdown {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #countdown.show { opacity: 1; }
+  #countdown-num {
+    font-size: 120px;
+    font-weight: bold;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(232,255,71,0.6);
+    line-height: 1;
+  }
+
+  #flash {
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.05s;
+  }
+  #flash.go { opacity: 1; }
+
   #opacity-label {
     position: absolute;
     top: 16px; left: 50%; transform: translateX(-50%);
@@ -105,18 +129,29 @@
     display: flex;
     align-items: center;
     padding: 0 16px;
-    gap: 12px;
+    gap: 10px;
+  }
+
+  #left-controls {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #top-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   #pick-btn {
     flex-shrink: 0;
-    width: 48px; height: 48px;
+    width: 44px; height: 44px;
     border-radius: 10px;
     border: 1.5px dashed var(--border);
     background: var(--bg);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
     overflow: hidden;
     position: relative;
   }
@@ -134,10 +169,10 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
   }
   #slider-label {
-    font-size: 9px;
+    font-size: 8px;
     letter-spacing: 0.2em;
     color: var(--muted);
     text-transform: uppercase;
@@ -163,10 +198,74 @@
     box-shadow: 0 0 0 3px rgba(232,255,71,0.2);
   }
 
+  #timer-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  #timer-label {
+    font-size: 8px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-right: 2px;
+  }
+  .timer-opt {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    background: var(--bg);
+    transition: all 0.15s;
+    font-family: 'Courier New', monospace;
+  }
+  .timer-opt.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,255,71,0.08);
+  }
+
+  #right-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #shutter {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 3px solid white;
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform 0.1s;
+    flex-shrink: 0;
+  }
+  #shutter:active { transform: scale(0.92); }
+  #shutter-inner {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    background: white;
+    transition: background 0.15s, transform 0.15s;
+  }
+  #shutter.counting #shutter-inner {
+    background: var(--accent);
+    transform: scale(0.7);
+  }
+
+  #icon-row {
+    display: flex;
+    gap: 8px;
+  }
+
   .icon-btn {
     flex-shrink: 0;
-    width: 44px; height: 44px;
-    border-radius: 10px;
+    width: 36px; height: 36px;
+    border-radius: 8px;
     border: 1.5px solid var(--border);
     background: var(--bg);
     display: flex; align-items: center; justify-content: center;
@@ -178,6 +277,7 @@
   .icon-btn.active { border-color: var(--accent); color: var(--accent); }
 
   #file-input { display: none; }
+  #canvas { display: none; }
 
   #empty {
     position: absolute;
@@ -217,6 +317,8 @@
   <div class="corner bl"></div>
   <div class="corner br"></div>
   <div id="opacity-label">45%</div>
+  <div id="countdown"><div id="countdown-num">3</div></div>
+  <div id="flash"></div>
   <div id="empty">
     <div id="empty-icon">⬡</div>
     <div id="empty-text">TAP THE THUMBNAIL<br>TO LOAD YOUR REFERENCE</div>
@@ -232,35 +334,51 @@
 </div>
 
 <div id="ui">
-  <div id="pick-btn" onclick="document.getElementById('file-input').click()">
-    <img id="thumb" alt="ref">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-      <circle cx="8.5" cy="8.5" r="1.5"/>
-      <polyline points="21 15 16 10 5 21"/>
-    </svg>
+  <div id="left-controls">
+    <div id="top-row">
+      <div id="pick-btn" onclick="document.getElementById('file-input').click()">
+        <img id="thumb" alt="ref">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <div id="slider-wrap">
+        <div id="slider-label">OVERLAY OPACITY</div>
+        <input type="range" id="opacity-slider" min="0" max="100" value="45">
+      </div>
+    </div>
+    <div id="timer-row">
+      <span id="timer-label">TIMER</span>
+      <div class="timer-opt active" data-val="0" onclick="setTimer(0)">OFF</div>
+      <div class="timer-opt" data-val="3" onclick="setTimer(3)">3S</div>
+      <div class="timer-opt" data-val="10" onclick="setTimer(10)">10S</div>
+    </div>
   </div>
 
-  <div id="slider-wrap">
-    <div id="slider-label">OVERLAY OPACITY</div>
-    <input type="range" id="opacity-slider" min="0" max="100" value="45">
+  <div id="right-controls">
+    <div id="shutter" onclick="triggerShutter()">
+      <div id="shutter-inner"></div>
+    </div>
+    <div id="icon-row">
+      <button class="icon-btn" id="grid-btn" onclick="toggleGrid()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="flip-btn" onclick="flipCamera()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+          <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
+        </svg>
+      </button>
+    </div>
   </div>
-
-  <button class="icon-btn" id="grid-btn" title="Toggle grid" onclick="toggleGrid()">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>
-    </svg>
-  </button>
-
-  <button class="icon-btn" id="flip-btn" title="Flip camera" onclick="flipCamera()">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-      <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
-    </svg>
-  </button>
 </div>
 
 <input type="file" id="file-input" accept="image/*">
+<canvas id="canvas"></canvas>
 
 <script>
   const video      = document.getElementById('video');
@@ -273,10 +391,18 @@
   const noCam      = document.getElementById('no-cam');
   const gridEl     = document.getElementById('grid');
   const gridBtn    = document.getElementById('grid-btn');
+  const shutter    = document.getElementById('shutter');
+  const countdown  = document.getElementById('countdown');
+  const countNum   = document.getElementById('countdown-num');
+  const flash      = document.getElementById('flash');
+  const canvas     = document.getElementById('canvas');
 
-  let facingMode   = 'environment';
-  let labelTimer   = null;
-  let stream       = null;
+  let facingMode    = 'environment';
+  let labelTimer    = null;
+  let stream        = null;
+  let timerVal      = 0;
+  let counting      = false;
+  let countInterval = null;
 
   async function startCamera() {
     if (stream) { stream.getTracks().forEach(t => t.stop()); }
@@ -289,7 +415,6 @@
       noCam.classList.remove('show');
     } catch (e) {
       noCam.classList.add('show');
-      console.warn('Camera error:', e);
     }
   }
 
@@ -304,9 +429,78 @@
     gridBtn.classList.toggle('active');
   }
 
+  function setTimer(val) {
+    timerVal = val;
+    document.querySelectorAll('.timer-opt').forEach(el => {
+      el.classList.toggle('active', parseInt(el.dataset.val) === val);
+    });
+  }
+
+  function triggerShutter() {
+    if (counting) {
+      clearInterval(countInterval);
+      counting = false;
+      shutter.classList.remove('counting');
+      countdown.classList.remove('show');
+      return;
+    }
+    if (timerVal === 0) {
+      takePhoto();
+    } else {
+      startCountdown(timerVal);
+    }
+  }
+
+  function startCountdown(secs) {
+    counting = true;
+    let remaining = secs;
+    countNum.textContent = remaining;
+    countdown.classList.add('show');
+    shutter.classList.add('counting');
+
+    countInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(countInterval);
+        countdown.classList.remove('show');
+        shutter.classList.remove('counting');
+        counting = false;
+        takePhoto();
+      } else {
+        countNum.textContent = remaining;
+      }
+    }, 1000);
+  }
+
+  function takePhoto() {
+    flash.classList.add('go');
+    setTimeout(() => flash.classList.remove('go'), 150);
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    if (facingMode === 'user') {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, w, h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'overlay-cam-' + Date.now() + '.jpg';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }, 'image/jpeg', 0.95);
+  }
+
   function updateOpacity(val) {
-    const pct = val / 100;
-    overlayImg.style.opacity = pct;
+    overlayImg.style.opacity = val / 100;
     slider.style.setProperty('--pct', val + '%');
     label.textContent = val + '%';
     label.classList.add('show');
