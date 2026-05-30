@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Overlay Cam</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --text: #f0f0f0;
+    --muted: #666;
+    --accent: #e8ff47;
+    --ui-h: 80px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* ── VIEWFINDER ── */
+  #viewfinder {
+    position: fixed;
+    inset: 0;
+    bottom: var(--ui-h);
+  }
+
+  #video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  #overlay-img {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    opacity: 0.45;
+    display: none;
+    mix-blend-mode: normal;
+  }
+
+  /* grid guide lines */
+  #grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #grid.on { opacity: 1; }
+  #grid::before, #grid::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,255,255,0.18);
+  }
+  #grid::before { left: 33.33%; right: 33.33%; top: 0; bottom: 0; width: 1px; margin: auto; box-shadow: 33vw 0 0 rgba(255,255,255,0.18); }
+  #grid::after  { top: 33.33%; bottom: 33.33%; left: 0; right: 0; height: 1px; margin: auto; box-shadow: 0 33vh 0 rgba(255,255,255,0.18); }
+
+  /* corner brackets */
+  .corner {
+    position: absolute;
+    width: 28px; height: 28px;
+    border-color: var(--accent);
+    border-style: solid;
+    opacity: 0.7;
+  }
+  .corner.tl { top: 16px; left: 16px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 16px; right: 16px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
+
+  /* opacity label */
+  #opacity-label {
+    position: absolute;
+    top: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    background: rgba(0,0,0,0.5);
+    padding: 3px 10px;
+    border-radius: 20px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  #opacity-label.show { opacity: 1; }
+
+  /* ── BOTTOM UI ── */
+  #ui {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: var(--ui-h);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  /* pick image button */
+  #pick-btn {
+    flex-shrink: 0;
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    border: 1.5px dashed var(--border);
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    overflow: hidden;
+    position: relative;
+  }
+  #pick-btn:active { background: #1e1e1e; }
+  #pick-btn svg { pointer-events: none; }
+  #thumb {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: none;
+    border-radius: 9px;
+  }
+
+  /* slider */
+  #slider-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  #slider-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, var(--accent) var(--pct, 45%), var(--border) var(--pct, 45%));
+    height: 4px; border-radius: 2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-top: -7px;
+    box-shadow: 0 0 0 3px rgba(232,255,71,0.2);
+  }
+
+  /* flip + grid buttons */
+  .icon-btn {
+    flex-shrink: 0;
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    color: var(--muted);
+  }
+  .icon-btn:active { background: #1e1e1e; }
+  .icon-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  #file-input { display: none; }
+
+  /* ── EMPTY STATE ── */
+  #empty {
+    position: absolute;
+    inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+  #empty.hidden { display: none; }
+  #empty-icon { font-size: 36px; opacity: 0.3; }
+  #empty-text {
+    font-size: 12px; letter-spacing: 0.15em;
+    color: var(--muted); text-align: center; line-height: 1.8;
+  }
+
+  /* ── NO CAMERA ── */
+  #no-cam {
+    position: fixed; inset: 0; bottom: var(--ui-h);
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px;
+    background: var(--bg);
+    font-size: 13px; color: var(--muted);
+    text-align: center; padding: 32px;
+  }
+  #no-cam.show { display: flex; }
+  #no-cam svg { opacity: 0.3; }
+</style>
+</head>
+<body>
+
+<div id="viewfinder">
+  <video id="video" autoplay playsinline muted></video>
+  <img id="overlay-img" alt="">
+  <div id="grid"></div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+  <div id="opacity-label">45%</div>
+
+  <div id="empty">
+    <div id="empty-icon">⬡</div>
+    <div id="empty-text">TAP THE THUMBNAIL<br>TO LOAD YOUR REFERENCE</div>
+  </div>
+</div>
+
+<div id="no-cam">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+  Camera access denied or unavailable.<br>Check Safari settings → allow camera.
+</div>
+
+<div id="ui">
+  <div id="pick-btn" onclick="document.getElementById('file-input').click()">
+    <img id="thumb" alt="ref">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+  </div>
+
+  <div id="slider-wrap">
+    <div id="slider-label">OVERLAY OPACITY</div>
+    <input type="range" id="opacity-slider" min="0" max="100" value="45">
+  </div>
+
+  <button class="icon-btn" id="grid-btn" title="Toggle grid" onclick="toggleGrid()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>
+    </svg>
+  </button>
+
+  <button class="icon-btn" id="flip-btn" title="Flip camera" onclick="flipCamera()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+      <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
+    </svg>
+  </button>
+</div>
+
+<input type="file" id="file-input" accept="image/*">
+
+<script>
+  const video      = document.getElementById('video');
+  const overlayImg = document.getElementById('overlay-img');
+  const slider     = document.getElementById('opacity-slider');
+  const thumb      = document.getElementById('thumb');
+  const fileInput  = document.getElementById('file-input');
+  const label      = document.getElementById('opacity-label');
+  const empty      = document.getElementById('empty');
+  const noCam      = document.getElementById('no-cam');
+  const gridEl     = document.getElementById('grid');
+  const gridBtn    = document.getElementById('grid-btn');
+
+  let facingMode   = 'environment';
+  let labelTimer   = null;
+  let stream       = null;
+
+  // ── CAMERA ──
+  async function startCamera() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      noCam.classList.remove('show');
+    } catch (e) {
+      noCam.classList.add('show');
+      console.warn('Camera error:', e);
+    }
+  }
+
+  function flipCamera() {
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    startCamera();
+  }
+
+  // ── GRID ──
+  function toggleGrid() {
+    gridEl.classList.toggle('on');
+    gridBtn.classList.toggle('active');
+  }
+
+  // ── OPACITY SLIDER ──
+  function updateOpacity(val) {
+    const pct = val / 100;
+    overlayImg.style.opacity = pct;
+    slider.style.setProperty('--pct', val + '%');
+    label.textContent = val + '%';
+    // show label briefly
+    label.classList.add('show');
+    clearTimeout(labelTimer);
+    labelTimer = setTimeout(() => label.classList.remove('show'), 1200);
+  }
+
+  slider.addEventListener('input', () => updateOpacity(slider.value));
+  // init track fill
+  slider.style.setProperty('--pct', '45%');
+
+  // ── FILE PICK ──
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    overlayImg.src = url;
+    overlayImg.style.display = 'block';
+    thumb.src = url;
+    thumb.style.display = 'block';
+    empty.classList.add('hidden');
+    // find the SVG placeholder and hide it
+    const svg = document.querySelector('#pick-btn > svg');
+    if (svg) svg.style.display = 'none';
+    updateOpacity(slider.value);
+    fileInput.value = '';
+  });
+
+  // ── INIT ──
+  startCamera();
+</script>
+</body>
+</html>
